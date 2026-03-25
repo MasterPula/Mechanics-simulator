@@ -1,4 +1,4 @@
-name = "mechanics-simulator"
+name = "mechanicssimulator"
 main = "worker/index.ts"
 compatibility_date = "2026-03-25"
 workers_dev = true
