@@ -23,14 +23,6 @@ npm run build
 npm run preview
 ```
 
-## Sicurezza (inclusa)
-
-- validazione e sanitizzazione del JSON importato (limiti su dimensione e cardinalita)
-- sanitizzazione input numerici/stringa nel pannello proprieta
-- limite dello storico undo/redo per prevenire crescita memoria incontrollata
-- headers di hardening tramite `_headers` e Worker (`CSP`, `nosniff`, `frame deny`, `permissions policy`)
-- pipeline GitHub Actions con `build` + `npm audit`
-
 ## Deploy su Cloudflare Workers
 
 1. Build locale:
