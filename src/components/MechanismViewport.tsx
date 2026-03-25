@@ -18,6 +18,12 @@ interface PointerHit {
   world: Vec2;
 }
 
+interface PinchGesture {
+  anchorWorld: Vec2;
+  startDistance: number;
+  startZoom: number;
+}
+
 interface ViewportProps {
   model: MechanismModel;
   selection: Selection;
@@ -39,6 +45,9 @@ interface ViewportProps {
 
 const VIEWPORT_WIDTH = 2000;
 const VIEWPORT_HEIGHT = 1400;
+const BUTTON_ZOOM_FACTOR = 1.28;
+const PINCH_ZOOM_EXPONENT = 1.18;
+const WHEEL_ZOOM_SENSITIVITY = 0.0024;
 
 function useGridLines(view: ViewState) {
   return useMemo(() => {
@@ -82,6 +91,43 @@ function screenToWorld(bounds: DOMRect, point: Vec2, view: ViewState): Vec2 {
   return {
     x: (svgPoint.x - view.pan.x) / view.zoom,
     y: (svgPoint.y - view.pan.y) / view.zoom,
+  };
+}
+
+function buildZoomedView(bounds: DOMRect, currentView: ViewState, screenPoint: Vec2, nextZoom: number): ViewState {
+  const worldBefore = screenToWorld(bounds, screenPoint, currentView);
+  const svgPoint = screenToSvg(bounds, screenPoint);
+  return {
+    ...currentView,
+    zoom: nextZoom,
+    pan: {
+      x: svgPoint.x - worldBefore.x * nextZoom,
+      y: svgPoint.y - worldBefore.y * nextZoom,
+    },
+  };
+}
+
+function getTouchPair(pointers: Map<number, Vec2>): [Vec2, Vec2] | null {
+  const points = [...pointers.values()];
+  if (points.length < 2) {
+    return null;
+  }
+
+  return [points[0], points[1]];
+}
+
+function getTouchCenter(first: Vec2, second: Vec2): Vec2 {
+  return {
+    x: (first.x + second.x) * 0.5,
+    y: (first.y + second.y) * 0.5,
+  };
+}
+
+function createPinchGesture(bounds: DOMRect, first: Vec2, second: Vec2, view: ViewState): PinchGesture {
+  return {
+    anchorWorld: screenToWorld(bounds, getTouchCenter(first, second), view),
+    startDistance: Math.max(distance(first, second), 1e-5),
+    startZoom: view.zoom,
   };
 }
 
@@ -137,7 +183,7 @@ export function MechanismViewport({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const viewRef = useRef(view);
   const touchPointersRef = useRef<Map<number, Vec2>>(new Map());
-  const pinchDistanceRef = useRef<number | null>(null);
+  const pinchGestureRef = useRef<PinchGesture | null>(null);
   const gridLines = useGridLines(view);
 
   useEffect(() => {
@@ -149,7 +195,7 @@ export function MechanismViewport({
       if (event.pointerType === "touch") {
         touchPointersRef.current.delete(event.pointerId);
         if (touchPointersRef.current.size < 2) {
-          pinchDistanceRef.current = null;
+          pinchGestureRef.current = null;
         }
       }
       onDragEnd(event.pointerId);
@@ -160,23 +206,41 @@ export function MechanismViewport({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
       touchPointersRef.current.clear();
-      pinchDistanceRef.current = null;
+      pinchGestureRef.current = null;
     };
   }, [onDragEnd]);
+
+  const handleZoomButton = (factor: number) => {
+    const nextZoom = clamp(view.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    if (Math.abs(nextZoom - view.zoom) <= 1e-5) {
+      return;
+    }
+
+    if (!svgRef.current) {
+      onViewChange({ ...view, zoom: nextZoom });
+      return;
+    }
+
+    const bounds = svgRef.current.getBoundingClientRect();
+    const center = vec(bounds.left + bounds.width * 0.5, bounds.top + bounds.height * 0.5);
+    onViewChange(buildZoomedView(bounds, view, center, nextZoom));
+  };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, vec(event.clientX, event.clientY));
-      if (touchPointersRef.current.size >= 2) {
+      const touchPair = getTouchPair(touchPointersRef.current);
+      if (touchPair && svgRef.current) {
         event.preventDefault();
         for (const pointerId of touchPointersRef.current.keys()) {
           onDragEnd(pointerId);
         }
-        const [first, second] = [...touchPointersRef.current.values()];
-        pinchDistanceRef.current = distance(first, second);
+        const bounds = svgRef.current.getBoundingClientRect();
+        const [first, second] = touchPair;
+        pinchGestureRef.current = createPinchGesture(bounds, first, second, viewRef.current);
         return;
       }
-      pinchDistanceRef.current = null;
+      pinchGestureRef.current = null;
     }
 
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -271,33 +335,32 @@ export function MechanismViewport({
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, vec(event.clientX, event.clientY));
+      const touchPair = getTouchPair(touchPointersRef.current);
 
-      if (touchPointersRef.current.size >= 2) {
+      if (touchPair && svgRef.current) {
         event.preventDefault();
-        const points = [...touchPointersRef.current.values()];
-        const [first, second] = points;
-        const currentDistance = distance(first, second);
-        const previousDistance = pinchDistanceRef.current ?? currentDistance;
-        pinchDistanceRef.current = currentDistance;
+        const [first, second] = touchPair;
+        const currentDistance = Math.max(distance(first, second), 1e-5);
+        const bounds = svgRef.current.getBoundingClientRect();
+        const currentView = viewRef.current;
+        const pinchGesture = pinchGestureRef.current ?? createPinchGesture(bounds, first, second, currentView);
+        pinchGestureRef.current = pinchGesture;
 
-        if (previousDistance > 1e-5 && svgRef.current) {
-          const center = {
-            x: (first.x + second.x) * 0.5,
-            y: (first.y + second.y) * 0.5,
-          };
-          const currentView = viewRef.current;
-          const nextZoom = clamp(currentView.zoom * (currentDistance / previousDistance), MIN_ZOOM, MAX_ZOOM);
+        const zoomRatio = Math.pow(currentDistance / pinchGesture.startDistance, PINCH_ZOOM_EXPONENT);
+        const nextZoom = clamp(pinchGesture.startZoom * zoomRatio, MIN_ZOOM, MAX_ZOOM);
+        const center = getTouchCenter(first, second);
+        const svgPoint = screenToSvg(bounds, center);
+        const nextPan = {
+          x: svgPoint.x - pinchGesture.anchorWorld.x * nextZoom,
+          y: svgPoint.y - pinchGesture.anchorWorld.y * nextZoom,
+        };
 
-          if (Math.abs(nextZoom - currentView.zoom) > 1e-5) {
-            const bounds = svgRef.current.getBoundingClientRect();
-            const worldBefore = screenToWorld(bounds, center, currentView);
-            const svgPoint = screenToSvg(bounds, center);
-            const nextPan = {
-              x: svgPoint.x - worldBefore.x * nextZoom,
-              y: svgPoint.y - worldBefore.y * nextZoom,
-            };
-            onViewChange({ ...currentView, zoom: nextZoom, pan: nextPan });
-          }
+        if (
+          Math.abs(nextZoom - currentView.zoom) > 1e-5 ||
+          Math.abs(nextPan.x - currentView.pan.x) > 0.25 ||
+          Math.abs(nextPan.y - currentView.pan.y) > 0.25
+        ) {
+          onViewChange({ ...currentView, zoom: nextZoom, pan: nextPan });
         }
         return;
       }
@@ -317,25 +380,23 @@ export function MechanismViewport({
     }
 
     event.preventDefault();
-    const nextZoom = clamp(view.zoom * (event.deltaY > 0 ? 0.92 : 1.08), MIN_ZOOM, MAX_ZOOM);
+    const nextZoom = clamp(view.zoom * Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY), MIN_ZOOM, MAX_ZOOM);
+    if (Math.abs(nextZoom - view.zoom) <= 1e-5) {
+      return;
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect();
     const pointer = vec(event.clientX, event.clientY);
-    const worldBefore = screenToWorld(bounds, pointer, view);
-    const svgPoint = screenToSvg(bounds, pointer);
-    const nextPan = {
-      x: svgPoint.x - worldBefore.x * nextZoom,
-      y: svgPoint.y - worldBefore.y * nextZoom,
-    };
-    onViewChange({ ...view, zoom: nextZoom, pan: nextPan });
+    onViewChange(buildZoomedView(bounds, view, pointer, nextZoom));
   };
 
   return (
     <section className="viewport-shell">
       <div className="zoom-controls">
-        <button type="button" onClick={() => onViewChange({ ...view, zoom: clamp(view.zoom * 1.2, MIN_ZOOM, MAX_ZOOM) })}>
+        <button type="button" onClick={() => handleZoomButton(BUTTON_ZOOM_FACTOR)} aria-label="Aumenta zoom">
           +
         </button>
-        <button type="button" onClick={() => onViewChange({ ...view, zoom: clamp(view.zoom / 1.2, MIN_ZOOM, MAX_ZOOM) })}>
+        <button type="button" onClick={() => handleZoomButton(1 / BUTTON_ZOOM_FACTOR)} aria-label="Riduci zoom">
           -
         </button>
       </div>
@@ -460,6 +521,3 @@ export function MechanismViewport({
     </section>
   );
 }
-
-
-

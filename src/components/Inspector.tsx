@@ -10,6 +10,7 @@ interface InspectorProps {
   onUpdateBar: (bar: MechanismBar) => void;
   onUpdateSupport: (support: MechanismSupport) => void;
   onChangeNodeSupport: (nodeId: string, type: SupportType | null) => void;
+  onClose: () => void;
 }
 
 function Field({
@@ -39,6 +40,7 @@ export function Inspector({
   onUpdateBar,
   onUpdateSupport,
   onChangeNodeSupport,
+  onClose,
 }: InspectorProps) {
   const visibleBars = getVisibleBars(model);
   const node = selection?.type === "node" ? getNode(model, selection.id) : undefined;
@@ -46,9 +48,19 @@ export function Inspector({
   const bar = selection?.type === "bar" ? getBar(model, selection.id) : undefined;
   const support = selection?.type === "support" ? getSupport(model, selection.id) : undefined;
 
+  if (!selection) {
+    return null;
+  }
+
   return (
-    <aside className="inspector-panel">
-      <div className="panel-title">Proprieta</div>
+    <aside className="inspector-panel is-open">
+      <div className="inspector-header">
+        <div className="panel-title">Proprieta</div>
+        <button type="button" className="secondary-button inspector-close" onClick={onClose} aria-label="Chiudi pannello proprieta">
+          Chiudi
+        </button>
+      </div>
+
       <div className="inspector-summary">
         <span>Nodi {model.nodes.length}</span>
         <span>Aste {visibleBars.length}</span>
@@ -156,16 +168,6 @@ export function Inspector({
           />
         </div>
       )}
-
-      {!selection && (
-        <div className="empty-state">
-          <h2>Nessun elemento selezionato</h2>
-          <p>
-            Seleziona un nodo, una barra o un vincolo per modificarne le proprieta. Con lo strumento cerniera puoi anche cliccare sopra un'asta per aggiungere un perno strutturalmente agganciato al corpo rigido.
-          </p>
-        </div>
-      )}
     </aside>
   );
 }
-

@@ -22,7 +22,7 @@ body,
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 15% 20%, rgba(57, 118, 195, 0.18), transparent 0 22%),
     linear-gradient(140deg, #07111d 0%, #0b1727 45%, #10233d 100%);
@@ -45,17 +45,19 @@ button:disabled {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
   padding: 14px;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  overflow: hidden;
 }
 
 .topbar,
 .toolbar-panel,
 .inspector-panel,
-.viewport-shell,
-.status-panel {
+.viewport-shell {
   border: 1px solid rgba(120, 168, 232, 0.16);
   background: rgba(6, 12, 21, 0.8);
   box-shadow:
@@ -124,7 +126,8 @@ button:disabled {
 .secondary-button:hover,
 .toggle-chip:hover,
 .tool-button:hover,
-.zoom-controls button:hover {
+.zoom-controls button:hover,
+.primary-button:hover {
   transform: translateY(-1px);
   border-color: rgba(125, 167, 221, 0.45);
 }
@@ -133,12 +136,19 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
+}
+
+.toggle-chip input {
+  accent-color: #59a4ff;
 }
 
 .workspace {
-  min-height: calc(100vh - 126px);
+  position: relative;
+  min-height: 0;
+  height: 100%;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -150,14 +160,16 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  align-self: start;
-  min-height: 0;
-  max-height: calc(100vh - 142px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
+}
+
+.toolbar-panel {
+  min-height: 0;
+  align-self: stretch;
 }
 
 .panel-title {
@@ -208,12 +220,15 @@ button:disabled {
 
 .viewport-column {
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   position: relative;
 }
 
 .viewport-shell {
   position: relative;
-  height: clamp(540px, calc(100vh - 200px), 860px);
+  height: 100%;
+  min-height: 0;
   border-radius: 26px;
   overflow: hidden;
 }
@@ -316,47 +331,55 @@ button:disabled {
 }
 
 .zoom-controls button {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   padding: 0;
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
-.viewport-shell,
-.viewport-shell *,
-.status-panel,
-.status-panel * {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.status-panel {
+.inspector-scrim {
   position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 14px;
+  inset: 0;
   z-index: 3;
-  border-radius: 16px;
-  padding: 8px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  font-size: 0.84rem;
+  border: 0;
+  background: rgba(3, 8, 16, 0.18);
+  padding: 0;
+  display: none;
+}
+
+.inspector-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: min(360px, 36vw);
+  z-index: 6;
+  max-height: none;
+  transform: translateX(calc(100% + 28px));
+  opacity: 0;
   pointer-events: none;
-  background: rgba(7, 14, 24, 0.72);
+  transition:
+    transform 220ms ease,
+    opacity 180ms ease;
 }
 
-.status-panel > div {
-  border: 1px solid rgba(125, 167, 221, 0.15);
-  border-radius: 10px;
-  padding: 6px 8px;
-  background: rgba(8, 17, 29, 0.78);
+.inspector-panel.is-open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.status-panel strong,
-.inspector-summary span,
-.field span {
-  font-family: "Consolas", "IBM Plex Mono", monospace;
+.inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inspector-close {
+  padding: 8px 12px;
+  white-space: nowrap;
 }
 
 .inspector-summary {
@@ -401,69 +424,108 @@ button:disabled {
   padding: 9px 11px;
 }
 
+.inspector-summary span,
+.field span {
+  font-family: "Consolas", "IBM Plex Mono", monospace;
+}
+
 .inspector-note,
 .empty-state p {
   color: #93abd0;
   margin: 0;
 }
 
+.viewport-shell,
+.viewport-shell * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 @media (max-width: 1360px) {
   .workspace {
-    grid-template-columns: 190px minmax(0, 1fr) 280px;
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .inspector-panel {
+    width: min(340px, 38vw);
   }
 }
 
 @media (max-width: 1180px) {
-  .workspace {
-    grid-template-columns: 92px minmax(0, 1fr) 260px;
+  .topbar {
+    padding: 12px 14px;
     gap: 10px;
   }
 
-  .toolbar-panel,
-  .inspector-panel {
-    padding: 12px;
+  .topbar h1 {
+    font-size: 1rem;
+    max-width: 280px;
+  }
+
+  .topbar-actions {
+    justify-content: flex-start;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .toggle-chip {
+    padding: 8px 11px;
+    font-size: 0.92rem;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .toolbar-panel {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    width: 76px;
+    max-height: calc(100% - 24px);
+    padding: 10px 8px;
+    border-radius: 18px;
+    background: rgba(6, 12, 21, 0.76);
+  }
+
+  .toolbar-panel .panel-title,
+  .toolbar-actions,
+  .tool-button span:not(.tool-icon),
+  .tool-button small {
+    display: none;
+  }
+
+  .tool-grid {
+    gap: 8px;
   }
 
   .tool-button {
     align-items: center;
     justify-content: center;
-    text-align: center;
-    min-height: 56px;
+    min-height: 52px;
+    padding: 6px;
+    border-radius: 14px;
   }
 
-  .tool-button small {
-    display: none;
+  .tool-icon {
+    font-size: 1.25rem;
   }
 
-  .status-panel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1024px) {
-  .topbar {
-    align-items: flex-start;
-    gap: 10px;
+  .inspector-scrim {
+    display: block;
   }
 
-  .topbar h1 {
-    font-size: 1.02rem;
-    max-width: 240px;
-  }
-
-  .workspace {
-    grid-template-columns: 82px minmax(0, 1fr) 240px;
-  }
-
-  .status-panel {
-    font-size: 0.8rem;
+  .inspector-panel {
+    width: min(340px, 52vw);
   }
 }
 
 @media (max-width: 860px) {
   .app-shell {
-    padding: 10px;
-    gap: 10px;
+    padding: 8px;
+    gap: 8px;
   }
 
   .topbar {
@@ -479,30 +541,27 @@ button:disabled {
 
   .topbar h1 {
     max-width: 100%;
-    font-size: 0.98rem;
+    font-size: 0.94rem;
   }
 
   .topbar-actions {
-    justify-content: flex-start;
     gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .workspace {
-    min-height: calc(100vh - 166px);
-    grid-template-columns: 68px minmax(0, 1fr);
-    grid-template-rows: minmax(64vh, 1fr) auto;
+    gap: 0;
   }
 
   .toolbar-panel {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    padding: 9px 7px;
-    max-height: calc(100vh - 190px);
+    top: 10px;
+    left: 10px;
+    width: 64px;
+    padding: 8px 6px;
     border-radius: 16px;
-  }
-
-  .panel-title {
-    display: none;
+    max-height: calc(100% - 20px);
   }
 
   .tool-grid {
@@ -510,53 +569,56 @@ button:disabled {
   }
 
   .tool-button {
-    min-height: 42px;
+    min-height: 44px;
     border-radius: 12px;
-    padding: 6px;
   }
 
-  .tool-button span:not(.tool-icon),
-  .tool-button small {
-    display: none;
+  .zoom-controls {
+    top: 10px;
+    right: 10px;
   }
 
-  .tool-icon {
-    font-size: 1.2rem;
-  }
-
-  .toolbar-actions {
-    display: none;
-  }
-
-  .viewport-column {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .viewport-shell {
-    height: 66vh;
-    border-radius: 18px;
-  }
-
-  .status-panel {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  .status-panel > div {
-    min-width: max-content;
+  .zoom-controls button {
+    width: 48px;
+    height: 48px;
   }
 
   .inspector-panel {
-    grid-column: 2;
-    grid-row: 2;
-    max-height: 34vh;
-    border-radius: 16px;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(88vw, 340px);
+    border-radius: 18px 0 0 18px;
+    padding: 12px;
   }
 }
 
+@media (max-width: 640px) {
+  .topbar h1 {
+    font-size: 0.88rem;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .toggle-chip {
+    padding: 8px 10px;
+    font-size: 0.86rem;
+  }
+
+  .icon-button {
+    width: 40px;
+    height: 36px;
+  }
+
+  .toolbar-panel {
+    width: 58px;
+  }
+
+  .tool-button {
+    min-height: 42px;
+  }
+
+  .inspector-panel {
+    width: min(92vw, 340px);
+  }
+}

@@ -351,6 +351,7 @@ export default function App() {
   const undoStackRef = useRef(undoStack);
   const redoStackRef = useRef(redoStack);
   const dragRef = useRef<DragInteraction | null>(null);
+  const inspectorOpenedAtRef = useRef(0);
 
   useEffect(() => {
     modelRef.current = model;
@@ -368,9 +369,17 @@ export default function App() {
     redoStackRef.current = redoStack;
   }, [redoStack]);
 
+  
+
   useEffect(() => {
     dragRef.current = dragInteraction;
   }, [dragInteraction]);
+
+  useEffect(() => {
+    if (selection) {
+      inspectorOpenedAtRef.current = performance.now();
+    }
+  }, [selection]);
 
   const restoreSnapshot = (snapshot: MechanismModel) => {
     const next = cloneModel(snapshot);
@@ -885,6 +894,15 @@ export default function App() {
       })()
     : "Trascina nodi o aste per muovere il sistema. Le cerniere aggiunte sopra un'asta restano agganciate al corpo rigido.";
 
+  const inspectorSelection = activeTool === "select" && !dragInteraction ? selection : null;
+  const handleDismissInspector = () => {
+    if (performance.now() - inspectorOpenedAtRef.current < 320) {
+      return;
+    }
+
+    setSelection(null);
+  };
+
   return (
     <div className="app-shell">
       <TopBar
@@ -934,40 +952,41 @@ export default function App() {
             onDragEnd={handleDragEnd}
           />
 
-          <section className="status-panel">
-            <div>
-              <strong>Coordinate</strong> {pointerWorld.x.toFixed(1)}, {pointerWorld.y.toFixed(1)}
-            </div>
-            <div>
-              <strong>Vista</strong> zoom {(view.zoom * 100).toFixed(0)}%
-            </div>
-            <div>
-              <strong>Solver</strong> media {solverError.toFixed(4)} / max {solverMaxError.toFixed(4)}
-            </div>
-            <div>
-              <strong>Hint</strong> {hint}
-            </div>
-            <div>
-              <strong>Movimento</strong> {motionHint}
-            </div>
-          </section>
+          {inspectorSelection && (
+            <>
+              <button
+                type="button"
+                className="inspector-scrim"
+                aria-label="Chiudi proprieta"
+                onClick={handleDismissInspector}
+              />
+              <Inspector
+                model={model}
+                selection={inspectorSelection}
+                solverError={solverError}
+                onUpdateNode={handleUpdateNode}
+                onUpdateBar={handleUpdateBar}
+                onUpdateSupport={handleUpdateSupport}
+                onChangeNodeSupport={handleChangeNodeSupport}
+                onClose={handleDismissInspector}
+              />
+            </>
+          )}
         </div>
-
-        <Inspector
-          model={model}
-          selection={selection}
-          solverError={solverError}
-          onUpdateNode={handleUpdateNode}
-          onUpdateBar={handleUpdateBar}
-          onUpdateSupport={handleUpdateSupport}
-          onChangeNodeSupport={handleChangeNodeSupport}
-        />
       </main>
 
       <input ref={fileInputRef} type="file" accept="application/json,.json" hidden onChange={handleLoadFile} />
     </div>
   );
 }
+
+
+
+
+
+
+
+
 
 
 
