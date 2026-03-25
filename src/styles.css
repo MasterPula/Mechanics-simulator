@@ -151,8 +151,13 @@ button:disabled {
   flex-direction: column;
   gap: 14px;
   align-self: start;
+  min-height: 0;
   max-height: calc(100vh - 142px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .panel-title {
@@ -218,6 +223,8 @@ button:disabled {
   height: 100%;
   display: block;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .viewport-bg {
@@ -313,6 +320,14 @@ button:disabled {
   height: 42px;
   padding: 0;
   font-size: 1.15rem;
+}
+
+.viewport-shell,
+.viewport-shell *,
+.status-panel,
+.status-panel * {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .status-panel {

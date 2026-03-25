@@ -135,19 +135,50 @@ export function MechanismViewport({
   onDragEnd,
 }: ViewportProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const viewRef = useRef(view);
+  const touchPointersRef = useRef<Map<number, Vec2>>(new Map());
+  const pinchDistanceRef = useRef<number | null>(null);
   const gridLines = useGridLines(view);
 
   useEffect(() => {
-    const handlePointerUp = (event: PointerEvent) => onDragEnd(event.pointerId);
+    viewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    const handlePointerUp = (event: PointerEvent) => {
+      if (event.pointerType === "touch") {
+        touchPointersRef.current.delete(event.pointerId);
+        if (touchPointersRef.current.size < 2) {
+          pinchDistanceRef.current = null;
+        }
+      }
+      onDragEnd(event.pointerId);
+    };
     window.addEventListener("pointerup", handlePointerUp);
     window.addEventListener("pointercancel", handlePointerUp);
     return () => {
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
+      touchPointersRef.current.clear();
+      pinchDistanceRef.current = null;
     };
   }, [onDragEnd]);
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.set(event.pointerId, vec(event.clientX, event.clientY));
+      if (touchPointersRef.current.size >= 2) {
+        event.preventDefault();
+        for (const pointerId of touchPointersRef.current.keys()) {
+          onDragEnd(pointerId);
+        }
+        const [first, second] = [...touchPointersRef.current.values()];
+        pinchDistanceRef.current = distance(first, second);
+        return;
+      }
+      pinchDistanceRef.current = null;
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect();
     const screen = vec(event.clientX, event.clientY);
     const rawWorld = screenToWorld(bounds, screen, view);
@@ -238,6 +269,40 @@ export function MechanismViewport({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.set(event.pointerId, vec(event.clientX, event.clientY));
+
+      if (touchPointersRef.current.size >= 2) {
+        event.preventDefault();
+        const points = [...touchPointersRef.current.values()];
+        const [first, second] = points;
+        const currentDistance = distance(first, second);
+        const previousDistance = pinchDistanceRef.current ?? currentDistance;
+        pinchDistanceRef.current = currentDistance;
+
+        if (previousDistance > 1e-5 && svgRef.current) {
+          const center = {
+            x: (first.x + second.x) * 0.5,
+            y: (first.y + second.y) * 0.5,
+          };
+          const currentView = viewRef.current;
+          const nextZoom = clamp(currentView.zoom * (currentDistance / previousDistance), MIN_ZOOM, MAX_ZOOM);
+
+          if (Math.abs(nextZoom - currentView.zoom) > 1e-5) {
+            const bounds = svgRef.current.getBoundingClientRect();
+            const worldBefore = screenToWorld(bounds, center, currentView);
+            const svgPoint = screenToSvg(bounds, center);
+            const nextPan = {
+              x: svgPoint.x - worldBefore.x * nextZoom,
+              y: svgPoint.y - worldBefore.y * nextZoom,
+            };
+            onViewChange({ ...currentView, zoom: nextZoom, pan: nextPan });
+          }
+        }
+        return;
+      }
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect();
     const screen = vec(event.clientX, event.clientY);
     const rawWorld = screenToWorld(bounds, screen, view);
