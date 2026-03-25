@@ -23,29 +23,6 @@ npm run build
 npm run preview
 ```
 
-## Deploy su Cloudflare Workers
-
-1. Build locale:
-
-```bash
-npm ci
-npm run build
-```
-
-2. Login Cloudflare:
-
-```bash
-npx wrangler login
-```
-
-3. Deploy:
-
-```bash
-npx wrangler deploy
-```
-
-Il Worker in `worker/index.ts` serve i file statici da `dist` e applica gli header di sicurezza.
-
 ## Funzioni incluse
 
 - area di lavoro 2D con griglia, zoom, pan, coordinate e snap opzionale
